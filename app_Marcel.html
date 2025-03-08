@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image RGB Calculator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.3.0/fabric.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="calculateBtn">Calcular RGB</button>
+    <div id="result"></div>
+    <canvas id="canvas" width="800" height="600"></canvas>
+
+    <script>
+        let canvas = new fabric.Canvas('canvas');
+        let polygonPoints = [];
+        let imageInstance = null;
+
+        // Cargar imagen
+        $('#imageInput').change(function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(f) {
+                fabric.Image.fromURL(f.target.result, function(img) {
+                    canvas.clear();
+                    imageInstance = img.set({
+                        selectable: false
+                    });
+                    canvas.add(imageInstance);
+                    canvas.renderAll();
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Dibujar polígono
+        canvas.on('mouse:down', function(options) {
+            if (!imageInstance) return;
+            
+            const point = {
+                x: options.pointer.x,
+                y: options.pointer.y
+            };
+            
+            polygonPoints.push(point);
+            
+            if (polygonPoints.length > 1) {
+                const line = new fabric.Line([
+                    polygonPoints[polygonPoints.length - 2].x,
+                    polygonPoints[polygonPoints.length - 2].y,
+                    point.x,
+                    point.y
+                ], {
+                    stroke: 'red',
+                    strokeWidth: 2
+                });
+                canvas.add(line);
+            }
+        });
+
+        // Calcular RGB
+        $('#calculateBtn').click(function() {
+            if (!imageInstance || polygonPoints.length < 3) return;
+            
+            const img = imageInstance.getElement();
+            const canvasTemp = document.createElement('canvas');
+            const ctxTemp = canvasTemp.getContext('2d');
+            
+            canvasTemp.width = img.width;
+            canvasTemp.height = img.height;
+            ctxTemp.drawImage(img, 0, 0);
+            
+            const imageData = ctxTemp.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+            
+            let totalR = 0, totalG = 0, totalB = 0;
+            let pixelCount = 0;
+            
+            for (let y = 0; y < img.height; y++) {
+                for (let x = 0; x < img.width; x++) {
+                    if (isPointInPolygon(x, y, polygonPoints)) {
+                        const i = (y * img.width + x) * 4;
+                        totalR += data[i];
+                        totalG += data[i + 1];
+                        totalB += data[i + 2];
+                        pixelCount++;
+                    }
+                }
+            }
+            
+            $('#result').html(`
+                R: ${totalR}<br>
+                G: ${totalG}<br>
+                B: ${totalB}<br>
+                Píxeles: ${pixelCount}
+            `);
+        });
+
+        // Algoritmo de punto en polígono
+        function isPointInPolygon(x, y, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+                
+                const intersect = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+    </script>
+</body>
+</html>
