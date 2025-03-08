@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image RGB Calculator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.3.0/fabric.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Elimina barras de desplazamiento */
+        }
+        #canvas {
+            border: 1px solid #ccc;
+            touch-action: none; /* Mejora comportamiento en móviles */
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="calculateBtn">Calcular RGB</button>
+    <div id="result"></div>
+    <canvas id="canvas"></canvas> <!-- Eliminamos dimensiones fijas -->
+
+    <script>
+        let canvas = new fabric.Canvas('canvas');
+        let polygonPoints = [];
+        let imageInstance = null;
+        let isDrawing = false;
+
+        // Deshabilitar menú contextual en canvas
+        canvas.on('mouse:down', function(options) {
+            if (options.e.button === 2) options.e.preventDefault();
+        });
+
+        // Autoajustar tamaño del canvas y iframe
+        function resizeCanvasToImage(img) {
+            const maxWidth = window.innerWidth - 30;
+            const maxHeight = window.innerHeight - 100;
+            let ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+            
+            canvas.setDimensions({
+                width: img.width * ratio,
+                height: img.height * ratio
+            });
+            
+            // Avisar al padre para ajustar iframe
+            window.parent.postMessage({
+                type: 'resize',
+                height: canvas.getHeight() + 150
+            }, '*');
+        }
+
+        // Cargar imagen con autoajuste
+        $('#imageInput').change(function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(f) {
+                fabric.Image.fromURL(f.target.result, function(img) {
+                    canvas.clear();
+                    imageInstance = img.set({ selectable: false });
+                    canvas.add(imageInstance);
+                    resizeCanvasToImage(img);
+                    canvas.renderAll();
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Sistema de dibujo con clic derecho
+        canvas.on('mouse:down', function(options) {
+            if (!imageInstance || options.e.button !== 2) return;
+            
+            options.e.preventDefault();
+            const pointer = canvas.getPointer(options.e);
+            
+            if (!isDrawing) { // Nuevo polígono
+                isDrawing = true;
+                polygonPoints = [pointer];
+            } else { // Añadir punto
+                polygonPoints.push(pointer);
+                
+                // Dibujar línea temporal
+                new fabric.Line([
+                    polygonPoints[polygonPoints.length - 2].x,
+                    polygonPoints[polygonPoints.length - 2].y,
+                    pointer.x,
+                    pointer.y
+                ], {
+                    stroke: 'red',
+                    strokeWidth: 2,
+                    selectable: false
+                }).addTo(canvas);
+            }
+            
+            // Cerrar automáticamente con 3+ puntos
+            if (polygonPoints.length >= 3) {
+                const polygon = new fabric.Polygon(polygonPoints, {
+                    fill: 'rgba(255,0,0,0.2)',
+                    stroke: 'red',
+                    strokeWidth: 2,
+                    selectable: false
+                });
+                
+                canvas.add(polygon);
+                canvas.remove(...canvas.getObjects().filter(o => o.type === 'line'));
+                isDrawing = false;
+            }
+        });
+
+        // Resto del código (función de cálculo RGB) permanece igual...
+    </script>
+</body>
+</html>
